@@ -11,7 +11,6 @@ Prevent Blank Submission -->
 
 
 # Code Protect - AI
-#### Video Demo: https://youtu.be/6pWCekfs20M
 #### Description: 
 
 CodeProtect AI is a web application designed to help developers identify potential security vulnerabilities in their code before deploying it. The goal of this project is to provide a simple, educational tool that demonstrates how common security issues can be detected automatically and explained in a way that developers can easily understand. The application allows users to paste a snippet of code into a web interface, select the programming language, and receive a report highlighting possible security risks along with explanations and remediation suggestions.
