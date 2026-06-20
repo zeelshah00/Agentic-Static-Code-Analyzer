@@ -5,8 +5,7 @@
 <h2>Analysis Results</h2>
 
 <div class="mb-4">
-
-    <div class="alert 
+    <div class="alert
         {% if risk == 'High' %}alert-danger
         {% elif risk == 'Medium' %}alert-warning
         {% elif risk == 'Low' %}alert-secondary
@@ -14,83 +13,71 @@
         {% endif %}" role="alert">
 
         <h4 class="alert-heading">
-            {% if risk == "High" %}
-                High Risk Detected
-            {% elif risk == "Medium" %}
-                Medium Risk Detected
-            {% elif risk == "Low" %}
-                Low Risk Detected
-            {% else %}
-                No Security Issues Detected
+            {% if risk == "High" %}High Risk Detected
+            {% elif risk == "Medium" %}Medium Risk Detected
+            {% elif risk == "Low" %}Low Risk Detected
+            {% else %}No Security Issues Detected
             {% endif %}
         </h4>
 
-    <p class="mb-0">
-        {{ len_findings }} vulnerability findings discovered during analysis.
-    </p>
-
+        <p class="mb-0">{{ len_findings }} vulnerability finding{% if len_findings != 1 %}s{% endif %} discovered.</p>
     </div>
-
 </div>
 
-
 <div class="mb-4">
-    <strong>Language:</strong> {{ language }} <br>
-    <strong>Findings:</strong> {{ len_findings }} <br>
-    <strong>Overall Risk:</strong> 
-    <span class="badge 
-    {% if risk == 'High' %}bg-danger
-    {% elif risk == 'Medium' %}bg-warning
-    {% elif risk == 'Low' %}bg-secondary
-    {% else %}bg-success
-    {% endif %}">
-    {{ risk }}
+    <strong>Language:</strong> {{ language }}<br>
+    <strong>Findings:</strong> {{ len_findings }}<br>
+    <strong>Overall Risk:</strong>
+    <span class="badge
+        {% if risk == 'High' %}bg-danger
+        {% elif risk == 'Medium' %}bg-warning
+        {% elif risk == 'Low' %}bg-secondary
+        {% else %}bg-success
+        {% endif %}">
+        {{ risk }}
     </span>
 </div>
 
 <h4>Submitted Code</h4>
 <pre class="code-block">{{ code }}</pre>
 
-    <hr>
+<hr>
 
-        {% if findings %}
+{% if findings %}
 
-            {% for finding in findings %}
-
-                <div class="card mb-3 shadow-sm">
-
-                <div class="card-body">
-
-                <h5 class="card-title">
+    {% for finding in findings %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">
                 {{ finding.title }}
+                <span class="badge
+                    {% if finding.severity == 'High' %}bg-danger
+                    {% elif finding.severity == 'Medium' %}bg-warning
+                    {% else %}bg-secondary
+                    {% endif %}">
+                    {{ finding.severity }}
+                </span>
+            </h5>
+            <p><strong>Line:</strong> {{ finding.line }}</p>
+            <p><strong>Snippet:</strong></p>
+            <pre class="code-block">{{ finding.snippet }}</pre>
+            <p><strong>Explanation:</strong> {{ finding.explanation }}</p>
+        </div>
+    </div>
+    {% endfor %}
 
-                <span class="badge 
-                {% if finding.severity == 'High' %}bg-danger
-                {% elif finding.severity == 'Medium' %}bg-warning
-                {% else %}bg-secondary
-                {% endif %}">
-                {{ finding.severity }} </span>
+    {% if suggestion %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">AI Suggested Fix</h5>
+            <pre class="code-block">{{ suggestion }}</pre>
+        </div>
+    </div>
+    {% endif %}
 
-                </h5>
-
-                <p><strong>Line:</strong> {{ finding.line }}</p>
-
-                <p><strong>Snippet:</strong></p>
-                <pre class="code-block">{{ finding.snippet }}</pre>
-
-                <p><strong>Explanation:</strong> {{ finding.explanation }}</p>
-
-                <p><strong>AI Suggested Fix:</strong></p>
-                <pre class="code-block">{{ suggestion }}</pre>
-
-                </div>
-
-                </div>
-
-                {% endfor %}
-        {% else %}
-            <p>No findings detected.</p>
-        {% endif %}
+{% else %}
+    <p>No findings detected.</p>
+{% endif %}
 
 <a href="/" class="btn btn-primary">Analyze Another</a>
 

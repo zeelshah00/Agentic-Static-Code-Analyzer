@@ -4,19 +4,23 @@
 
 <h2 class="mb-4">Analyze Code</h2>
 
+{% if error %}
+<div class="alert alert-warning" role="alert">{{ error }}</div>
+{% endif %}
+
 <form action="/analyze" method="POST">
 
     <div class="mb-3">
-    <label class="form-label">Language</label>
-    <select name="language" class="form-select">
-    <option value="python">Python</option>
-    <option value="javascript">JavaScript</option>
-    </select>
+        <label class="form-label">Language</label>
+        <select name="language" class="form-select">
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript</option>
+        </select>
     </div>
 
     <div class="mb-3">
-    <textarea name="code" rows="15" class="form-control"
-    placeholder="Paste code here"></textarea>
+        <textarea name="code" rows="15" class="form-control"
+            placeholder="Paste code here"></textarea>
     </div>
 
     <button type="submit" class="btn btn-primary">Analyze Code</button>

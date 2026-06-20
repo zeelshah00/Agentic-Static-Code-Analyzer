@@ -1,126 +1,147 @@
-<!-- Future Functionality:
+# CodeProtect AI
 
-Analyzer Logic Improvement (potentially use Regex or using API for data)
-Automatic Language Detection
-CSV global variable
-Additional Language Support
-Give GPT written language instead of raw data
-Prevent Blank Submission -->
+A static analysis tool that detects common security vulnerabilities in source code and augments deterministic findings with AI-generated remediation guidance.
 
-
-
-
-# Code Protect - AI
-#### Description: 
-
-CodeProtect AI is a web application designed to help developers identify potential security vulnerabilities in their code before deploying it. The goal of this project is to provide a simple, educational tool that demonstrates how common security issues can be detected automatically and explained in a way that developers can easily understand. The application allows users to paste a snippet of code into a web interface, select the programming language, and receive a report highlighting possible security risks along with explanations and remediation suggestions.
-
-Modern software development often moves quickly, and security issues can easily be overlooked, especially by beginner developers. Tools known as Static Application Security Testing (SAST) tools are commonly used in professional environments to analyze code and detect vulnerabilities before deployment. CodeProtect AI is inspired by these tools but intentionally simplified to make it easier to understand how such systems work internally. The application combines rule-based vulnerability detection with AI-generated explanations and remediation steps to produce helpful and readable results.
-
-The project was built using concepts and technologies learned throughout CS50, including Python, Flask, HTML, CSS, SQL, and APIs. It demonstrates full-stack web development while also incorporating modern AI capabilities.
+Built to explore a core AI engineering principle: use deterministic systems where you need reliability, and generative AI where you need natural language — never let the model make the security call.
 
 ---
 
-## Features
+## What It Does
 
-The main functionality of CodeProtect AI includes:
+Paste a code snippet into the web UI, select the language, and CodeProtect AI will:
 
-* **Code submission interface** where users can paste code snippets for analysis
-* **Language selection** to support multiple programming languages such as Python and JavaScript
-* **Rule-based vulnerability detection** that scans code for insecure patterns
-* **AI Powered recommendations** that suggest safer coding practices
-* **Scan history storage** using SQLite so users can review past analyses
-
-The analyzer currently focuses on detecting several common security vulnerabilities including:
-
-* SQL Injection
-* Dangerous use of `eval()` or `exec()`
-* Use of `subprocess(..., shell=True)`
-* Hardcoded credentials or API keys
-* Unsafe DOM manipulation in JavaScript such as `innerHTML`
-
-These checks are implemented using pattern matching and simple parsing logic to identify risky code structures.
+1. Scan every line against a compiled set of known-bad patterns (eval, shell injection, hardcoded secrets, XSS sinks, etc.)
+2. Score each finding by severity and compute an overall risk level
+3. Send the confirmed findings to an LLM to generate a concise, targeted remediation suggestion
+4. Persist the scan and findings to a local SQLite database for historical review
 
 ---
 
-## Project Architecture
+## Tech Stack
 
-The application follows a simple web architecture. The frontend provides a form where users submit their code, while the backend processes the submission and performs the analysis. The backend then returns the findings and explanations to be displayed on a results page.
-
-The overall flow works as follows:
-
-1. A user submits a code snippet through the web interface.
-2. Flask receives the code and language selection.
-3. The backend runs rule-based security checks to detect known vulnerability patterns.
-4. The detected findings are passed to an AI model that generate remediation suggestions.
-5. The results are displayed to the user and stored in the SQLite database.
-
-This architecture ensures that the application remains functional even if the AI service is unavailable because the primary detection logic is rule-based.
+| Layer | Choice | Why |
+|---|---|---|
+| Web framework | Flask | Three routes, no complex state — heavier frameworks would add friction |
+| Rule engine | CSV + compiled regex | Human-readable, version-controllable, zero infrastructure |
+| LLM | OpenAI gpt-4o-mini | Low latency and low cost for short-context summarization tasks; model is swappable via `OPENAI_MODEL` env var |
+| Persistence | SQLite | Self-contained for a local tool; no migration tooling needed |
+| Frontend | Bootstrap 5 + Jinja2 | Server-rendered keeps the stack simple and avoids a JS build step |
 
 ---
 
-## File Structure and Responsibilities
+## AI Engineering Design
 
-The project is organized into several files and directories to separate concerns and maintain clean code structure.
+This is where the interesting decisions live.
 
-### `app.py`
+**Stochastic vs deterministic: use the right tool for each job.**
+The scanner never asks the LLM whether code is vulnerable. LLMs hallucinate — a security tool that invents findings or silently misses real ones is worse than no tool at all. Detection is fully deterministic: the ruleset is a versioned CSV file, findings are reproducible, and every result is auditable. The LLM is brought in only *after* real findings exist, to do what it is good at: translating structured data into clear natural language.
 
-This file contains the main Flask application and defines all routes for the web server. It handles HTTP requests, receives user-submitted code, calls the analysis functions, and renders the HTML templates for displaying results. It also manages database interactions for storing scan history.
+**System/user message separation.**
+The LLM call splits instructions from variable content. The system message establishes the assistant persona and constraints once. The user message contains only the per-request data: language, fenced code block, and a formatted findings list. This follows the standard chat completions pattern and keeps the model's instruction context clean across requests.
 
-### `analyzer.py`
+**Structured context, not raw Python repr.**
+Findings are formatted as a human-readable numbered list before entering the prompt — not passed as raw `[{...}]` Python dict output. Structured, readable context measurably improves LLM output quality because the model is tokenizing natural-language text, not parsing interpreter output.
 
-The `analyzer.py` file contains the core analysis logic for the application. This includes functions that scan the submitted code for suspicious patterns and return a structured list of findings. Each finding includes a title, severity level, line number, and explanation.
+**`temperature=0` for consistent remediation.**
+Remediation suggestions should be reproducible for the same input. Creativity adds no value here — the model is summarising and suggesting, not generating. Setting `temperature=0` makes the output consistent across identical scans and easier to evaluate.
 
-Separating this logic into a helper module keeps the Flask routes clean and makes the analysis functions easier to maintain and expand.
+**Token budget: 400 max tokens.**
+A targeted fix suggestion for 1–3 findings fits comfortably in ~300 words. Raising the limit would cost more per call without improving quality for this task. The budget is explicit so it is easy to tune if the ruleset grows.
 
-### `prompts.py`
+**Stateless single-turn inference.**
+Each scan is a fresh, self-contained request. No conversation history is maintained because none is needed — the full context (code + findings) is present in every call. This keeps latency low and avoids accumulating tokens across turns.
 
-This file stores the AI prompt templates used when generating remediation suggestions. By isolating prompts in a separate file, the project keeps AI-related logic organized and makes it easier to modify prompts without changing the main application logic.
+**Prompt injection surface: acknowledged.**
+User-submitted code enters the prompt directly, creating a prompt injection vector. For a local developer tool this is an acceptable risk; the threat model is a single trusted user. A production deployment would require input sanitization or a sandboxed prompt template that keeps user content clearly delimited.
 
-### `templates/`
-
-The templates directory contains HTML files used by Flask to render pages.
-
-* **index.html** – The homepage where users paste their code and choose a language for analysis.
-* **results.html** – Displays the vulnerability findings and explanations after analysis.
-* **history.html** – Shows previously analyzed code snippets stored in the database.
-* **base.html** – A base template used to maintain consistent structure across pages.
-
-### `static/`
-
-This folder contains static assets such as CSS files used to style the web interface. The styling improves readability and visually highlights different severity levels for detected vulnerabilities.
-
-
-### `requirements.txt`
-
-This file lists all Python dependencies required to run the project. It allows others to easily install the correct packages using `pip install -r requirements.txt`.
+**Graceful degradation.**
+The OpenAI SDK is an optional dependency. If it is absent or the API call fails, the app returns a safe fallback string and continues normally. The core scanner is never blocked by the AI layer.
 
 ---
 
-## Design Decisions
+## Architecture
 
-Several design decisions were made during development.
-
-One key decision was to use rule-based detection as the primary vulnerability detection method instead of relying entirely on AI. While AI models are powerful, they can sometimes produce inconsistent or incorrect results. By implementing rule-based detection first, the system ensures consistent and predictable vulnerability detection. AI is then used only to explain the findings and suggest improvements.
-
-Another important design choice was to keep the project focused on a small number of common vulnerabilities instead of trying to support every possible security issue. This keeps the code manageable while still demonstrating how automated security analysis works.
-
-The project also stores scan results in a SQLite database, which allows users to review previous analyses and demonstrates the use of relational databases within a Flask application.
-
-Finally, the application was designed with modularity in mind. By separating the Flask routes, analysis logic, AI prompts, templates, and database interactions into different files and directories, the project becomes easier to understand and maintain.
+```
+User submits code
+       │
+       ▼
+  analyzer.py          ← deterministic, always runs
+  (regex scanner)
+       │
+  findings + risk
+       │
+       ├──────────────► history.py (SQLite persist)
+       │
+       ▼
+  prompts.py           ← stochastic, optional
+  (LLM call)
+       │
+  suggestion
+       │
+       ▼
+  results.html
+```
 
 ---
 
-## Future Improvements
+## Quickstart
 
-There are several possible improvements that could extend this project further.
+```bash
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-Future versions could include support for additional programming languages, more advanced vulnerability detection techniques, integration with public vulnerability databases, or automated code fixes generated by AI. The system could also be expanded into a browser extension or integrated directly into development environments.
+Set your OpenAI key (optional — the scanner runs without it):
+
+```bash
+export OPENAI_API_KEY=sk-...    # Windows: set OPENAI_API_KEY=sk-...
+```
+
+Run the app:
+
+```bash
+flask run
+```
+
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000) and paste code to scan.
 
 ---
 
-## Conclusion
+## Project Structure
 
-CodeProtect AI demonstrates how automated security tools can help developers write safer code. By combining rule-based vulnerability detection with AI-generated explanations, the project provides an educational and practical tool for understanding common security risks in software development.
+```
+.
+├── app.py               # Flask routes (index, analyze, history)
+├── analyzer.py          # Rule loader and line-by-line scanner
+├── history.py           # SQLite persistence (scans + findings tables)
+├── prompts.py           # LLM integration for remediation suggestions
+├── vulnerabilities.csv  # Pattern ruleset — add rows to extend coverage
+├── templates/           # Jinja2 templates (base, index, results, history)
+└── static/styles.css    # Minimal custom styles on top of Bootstrap
+```
 
-This project reflects concepts learned throughout CS50, including web development, database management, APIs, and software design. It also introduces modern AI integration, illustrating how traditional programming techniques and machine learning tools can work together to create useful developer tools.
+---
+
+## Extending the Ruleset
+
+Add a row to `vulnerabilities.csv` to detect a new pattern:
+
+```
+pattern,title,severity,category,explanation
+os.system(,Direct OS command execution,High,Injection Risk,os.system() passes input directly to the shell without sanitisation.
+```
+
+The scanner picks up new rules on the next request (cache is per-process).
+
+---
+
+## Potential Next Steps
+
+- **RAG over CVE/NIST advisories** — embed vulnerability advisories as vector context so the LLM can surface CVE references and known exploit patterns in its suggestions
+- **Eval harness** — measure suggestion quality against a labeled set of known-good fixes to catch prompt regressions when the model or prompt changes
+- **Streaming responses** — use the OpenAI streaming API to progressively render suggestions for large code blocks
+- **Multi-model support** — abstract the LLM call behind an interface to support Claude, Gemini, or local Ollama models for offline/private scanning
+- **Agentic refinement loop** — re-scan the AI's proposed fix and prompt it to self-correct if the suggestion still contains vulnerable patterns
+- **AST-based detection** — replace regex with AST traversal to eliminate false positives from patterns that appear in comments or string literals
+- **CLI and CI integration** — expose the scanner as a command-line tool for GitHub Actions to block merges on high-severity findings
